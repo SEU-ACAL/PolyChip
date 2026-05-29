@@ -28,19 +28,19 @@ function(add_tile_matmul_test name)
     COMMAND ${BUDDY_OPT} ${MLIR_SRC}
       -convert-tile-to-buckyball
       -lower-buckyball-to-bank-ssa
-      "--assign-physical-banks=bank_num=32"
+      "--assign-physical-banks=bank_num=16"
       > ${CMAKE_CURRENT_BINARY_DIR}/${name}_3_physical_banks.mlir
     COMMAND ${BUDDY_OPT} ${MLIR_SRC}
       -convert-tile-to-buckyball
       -lower-buckyball-to-bank-ssa
-      "--assign-physical-banks=bank_num=32"
+      "--assign-physical-banks=bank_num=16"
       -lower-bank-ssa-to-intrinsics
       -lower-buckyball
       > ${CMAKE_CURRENT_BINARY_DIR}/${name}_4_buckyball_intrinsics.mlir
     COMMAND ${BUDDY_OPT} ${MLIR_SRC}
       -convert-tile-to-buckyball
       -lower-buckyball-to-bank-ssa
-      "--assign-physical-banks=bank_num=32"
+      "--assign-physical-banks=bank_num=16"
       -lower-bank-ssa-to-intrinsics
       -convert-linalg-to-loops
       -expand-strided-metadata
@@ -55,7 +55,7 @@ function(add_tile_matmul_test name)
     COMMAND ${BUDDY_OPT} ${MLIR_SRC}
       -convert-tile-to-buckyball
       -lower-buckyball-to-bank-ssa
-      "--assign-physical-banks=bank_num=32"
+      "--assign-physical-banks=bank_num=16"
       -lower-bank-ssa-to-intrinsics
       -convert-linalg-to-loops
       -expand-strided-metadata
@@ -71,7 +71,7 @@ function(add_tile_matmul_test name)
     COMMAND ${BUDDY_OPT} ${MLIR_SRC}
       -convert-tile-to-buckyball
       -lower-buckyball-to-bank-ssa
-      "--assign-physical-banks=bank_num=32"
+      "--assign-physical-banks=bank_num=16"
       -lower-bank-ssa-to-intrinsics
       -convert-linalg-to-loops
       -expand-strided-metadata
@@ -161,5 +161,34 @@ function(add_tile_matmul_contract_test name)
   )
 endfunction()
 
+function(add_tile_contract_test name)
+  set(MLIR_SRC ${CMAKE_CURRENT_SOURCE_DIR}/${name}.mlir)
+  set(OUT ${CMAKE_CURRENT_BINARY_DIR}/${name}_bank_ssa.mlir)
+
+  add_custom_command(
+    OUTPUT ${OUT}
+    COMMAND ${BUDDY_OPT} ${MLIR_SRC}
+      -convert-tile-to-buckyball
+      -lower-buckyball-to-bank-ssa
+      > ${OUT}
+    DEPENDS ${MLIR_SRC} ${BUDDY_OPT}
+    COMMENT "Building Tile contract IR for ${name}"
+    VERBATIM
+  )
+
+  add_custom_target(optest_tile_${name}_contract
+    COMMAND ${FILECHECK} ${MLIR_SRC} --input-file=${OUT}
+    DEPENDS ${OUT}
+    COMMENT "Checking Tile contract for ${name}"
+    VERBATIM
+  )
+endfunction()
+
 add_tile_matmul_test(matmul_127x17_17x127)
 add_tile_matmul_contract_test(matmul_16x2048_2048x16_contract)
+add_tile_contract_test(conv2d_nhwc_hwcf_contract)
+
+add_custom_target(tile-OpTest-build ALL DEPENDS
+  optest_tile_matmul_127x17_17x127
+  COMMENT "Building all Tile OpTest workloads"
+  VERBATIM)

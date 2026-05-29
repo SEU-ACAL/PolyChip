@@ -25,17 +25,17 @@ function(add_buckyball_matmul_test name)
             > ${CMAKE_CURRENT_BINARY_DIR}/${name}_1_bank_ssa.mlir
         COMMAND ${BUDDY_OPT} ${MLIR_SRC}
             -lower-buckyball-to-bank-ssa
-            "--assign-physical-banks=bank_num=32"
+            "--assign-physical-banks=bank_num=16"
             > ${CMAKE_CURRENT_BINARY_DIR}/${name}_2_physical_banks.mlir
         COMMAND ${BUDDY_OPT} ${MLIR_SRC}
             -lower-buckyball-to-bank-ssa
-            "--assign-physical-banks=bank_num=32"
+            "--assign-physical-banks=bank_num=16"
             -lower-bank-ssa-to-intrinsics
             -lower-buckyball
             > ${CMAKE_CURRENT_BINARY_DIR}/${name}_3_buckyball_intrinsics.mlir
         COMMAND ${BUDDY_OPT} ${MLIR_SRC}
             -lower-buckyball-to-bank-ssa
-            "--assign-physical-banks=bank_num=32"
+            "--assign-physical-banks=bank_num=16"
             -lower-bank-ssa-to-intrinsics
             -convert-linalg-to-loops
             -expand-strided-metadata
@@ -49,7 +49,7 @@ function(add_buckyball_matmul_test name)
             > ${CMAKE_CURRENT_BINARY_DIR}/${name}_4_llvm.mlir
         COMMAND ${BUDDY_OPT} ${MLIR_SRC}
             -lower-buckyball-to-bank-ssa
-            "--assign-physical-banks=bank_num=32"
+            "--assign-physical-banks=bank_num=16"
             -lower-bank-ssa-to-intrinsics
             -convert-linalg-to-loops
             -expand-strided-metadata
@@ -64,7 +64,7 @@ function(add_buckyball_matmul_test name)
             > ${CMAKE_CURRENT_BINARY_DIR}/${name}_5.ll
         COMMAND ${BUDDY_OPT} ${MLIR_SRC}
             -lower-buckyball-to-bank-ssa
-            "--assign-physical-banks=bank_num=32"
+            "--assign-physical-banks=bank_num=16"
             -lower-bank-ssa-to-intrinsics
             -convert-linalg-to-loops
             -expand-strided-metadata
@@ -144,6 +144,36 @@ function(add_buckyball_matmul_contract_test name)
     )
 endfunction()
 
+function(add_buckyball_contract_test name)
+    set(MLIR_SRC ${CMAKE_CURRENT_SOURCE_DIR}/${name}.mlir)
+    set(OUT ${CMAKE_CURRENT_BINARY_DIR}/${name}_intrinsics.mlir)
+
+    add_custom_command(
+        OUTPUT ${OUT}
+        COMMAND ${BUDDY_OPT} ${MLIR_SRC}
+            "--assign-physical-banks=bank_num=16"
+            -lower-bank-ssa-to-intrinsics
+            > ${OUT}
+        DEPENDS ${MLIR_SRC} ${BUDDY_OPT}
+        COMMENT "Building Buckyball contract IR for ${name}"
+        VERBATIM
+    )
+
+    add_custom_target(optest_buckyball_${name}_contract
+        COMMAND ${FILECHECK} ${MLIR_SRC} --input-file=${OUT}
+        DEPENDS ${OUT}
+        COMMENT "Checking Buckyball contract for ${name}"
+        VERBATIM
+    )
+endfunction()
+
 add_buckyball_matmul_contract_test(matmul_16x64_64x16)
 add_buckyball_matmul_test(matmul_64x16_16x64)
 add_buckyball_matmul_test(matmul_1024x16_16x1024)
+add_buckyball_contract_test(bank_im2col_contract)
+
+add_custom_target(buckyball-OpTest-build ALL DEPENDS
+    optest_buckyball_matmul_64x16_16x64
+    optest_buckyball_matmul_1024x16_16x1024
+    COMMENT "Building all Buckyball OpTest workloads"
+    VERBATIM)
