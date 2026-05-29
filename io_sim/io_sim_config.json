@@ -1,0 +1,21 @@
+{
+  "scons_jobs": 4,
+  "gem5_dir": "gem5",
+  "build_target": "build/NULL/gem5.opt",
+  "protocol": "Garnet_standalone",
+  "run": {
+    "outdir": "/tmp/io_chiplet_demo",
+    "redirect_stderr": true,
+    "silent_redirect": true,
+    "io_chiplet_params": {
+      "num_ports": 4,
+      "router_latency": 1,
+      "link_latency": 2,
+      "flit_width_bits": 128,
+      "vcs_per_vnet": 4,
+      "buffer_depth": 4,
+      "injectionrate": 0.5,
+      "sim_cycles": 50000
+    }
+  }
+}

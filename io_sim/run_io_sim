@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_PATH="${SCRIPT_DIR}/io_sim_config.json"
+
+if [[ $# -ne 0 ]]; then
+  echo "ERROR: This script does not take arguments. It always uses: ${CONFIG_PATH}" >&2
+  exit 2
+fi
+
+if [[ ! -f "${CONFIG_PATH}" ]]; then
+  echo "ERROR: config not found: ${CONFIG_PATH}" >&2
+  exit 2
+fi
+
+read_config_var() {
+  local key="$1"
+  python3 - "$CONFIG_PATH" "$key" <<'PY'
+import json, sys
+path, key = sys.argv[1], sys.argv[2]
+cfg = json.load(open(path, "r", encoding="utf-8"))
+cur = cfg
+for part in key.split("."):
+    if part not in cur:
+        print("")
+        sys.exit(0)
+    cur = cur[part]
+if isinstance(cur, bool):
+    print("true" if cur else "false")
+elif isinstance(cur, (dict, list)):
+    print(json.dumps(cur))
+else:
+    print(cur)
+PY
+}
+
+GEM5_DIR_REL="$(read_config_var gem5_dir)"
+BUILD_TARGET_REL="$(read_config_var build_target)"
+
+OUTDIR="$(read_config_var run.outdir)"
+REDIRECT_STDERR="$(read_config_var run.redirect_stderr)"
+SILENT_REDIRECT="$(read_config_var run.silent_redirect)"
+
+NUM_PORTS="$(read_config_var run.io_chiplet_params.num_ports)"
+ROUTER_LATENCY="$(read_config_var run.io_chiplet_params.router_latency)"
+LINK_LATENCY="$(read_config_var run.io_chiplet_params.link_latency)"
+FLIT_WIDTH_BITS="$(read_config_var run.io_chiplet_params.flit_width_bits)"
+VCS_PER_VNET="$(read_config_var run.io_chiplet_params.vcs_per_vnet)"
+BUFFER_DEPTH="$(read_config_var run.io_chiplet_params.buffer_depth)"
+INJECTIONRATE="$(read_config_var run.io_chiplet_params.injectionrate)"
+SIM_CYCLES="$(read_config_var run.io_chiplet_params.sim_cycles)"
+
+[[ -z "${GEM5_DIR_REL}" ]] && GEM5_DIR_REL="gem5"
+[[ -z "${BUILD_TARGET_REL}" ]] && BUILD_TARGET_REL="build/NULL/gem5.opt"
+
+GEM5_DIR="${SCRIPT_DIR}/${GEM5_DIR_REL}"
+GEM5_OPT="${GEM5_DIR}/${BUILD_TARGET_REL}"
+
+if [[ ! -x "${GEM5_OPT}" ]]; then
+  echo "ERROR: gem5 binary not found or not executable: ${GEM5_OPT}" >&2
+  echo "Hint: run ./io_sim/build_io_sim first." >&2
+  exit 2
+fi
+
+GEM5_ARGS=()
+[[ -n "${OUTDIR}" ]] && GEM5_ARGS+=("-d" "${OUTDIR}")
+[[ "${REDIRECT_STDERR}" == "true" ]] && GEM5_ARGS+=("-e")
+[[ "${SILENT_REDIRECT}" == "true" ]] && GEM5_ARGS+=("--silent-redirect")
+
+SCRIPT_PATH="${GEM5_DIR}/configs/example/io_chiplet_demo.py"
+if [[ ! -f "${SCRIPT_PATH}" ]]; then
+  echo "ERROR: demo script not found in gem5 repo: ${SCRIPT_PATH}" >&2
+  echo "Hint: ensure the io-chiplet demo patch is applied in the gem5 submodule." >&2
+  exit 2
+fi
+
+RUN_ARGS=()
+[[ -n "${NUM_PORTS}" ]] && RUN_ARGS+=("--num_ports" "${NUM_PORTS}")
+[[ -n "${ROUTER_LATENCY}" ]] && RUN_ARGS+=("--router_latency" "${ROUTER_LATENCY}")
+[[ -n "${LINK_LATENCY}" ]] && RUN_ARGS+=("--link_latency" "${LINK_LATENCY}")
+[[ -n "${FLIT_WIDTH_BITS}" ]] && RUN_ARGS+=("--flit_width_bits" "${FLIT_WIDTH_BITS}")
+[[ -n "${VCS_PER_VNET}" ]] && RUN_ARGS+=("--vcs_per_vnet" "${VCS_PER_VNET}")
+[[ -n "${BUFFER_DEPTH}" ]] && RUN_ARGS+=("--buffer_depth" "${BUFFER_DEPTH}")
+[[ -n "${INJECTIONRATE}" ]] && RUN_ARGS+=("--injectionrate" "${INJECTIONRATE}")
+[[ -n "${SIM_CYCLES}" ]] && RUN_ARGS+=("--sim_cycles" "${SIM_CYCLES}")
+
+echo "[run_io_sim] Running: ${GEM5_OPT} ${GEM5_ARGS[*]} ${SCRIPT_PATH} ${RUN_ARGS[*]}"
+exec "${GEM5_OPT}" "${GEM5_ARGS[@]}" "${SCRIPT_PATH}" "${RUN_ARGS[@]}"
