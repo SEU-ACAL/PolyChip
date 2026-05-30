@@ -17,6 +17,7 @@ usage() {
   echo "   4. bb-tests pre-compile sources"
   echo "   5. waveform-mcp build"
   echo "   6. pre-commit hooks installation"
+  echo "   9. io_sim install"
   echo ""
   echo "**See below for options to skip parts of the setup. Skipping parts of the setup is not guaranteed to be tested/working.**"
   echo ""
@@ -76,14 +77,7 @@ function begin_step
 begin_step "0-1" "submodules init"
 # git submodule update --init --progress --jobs 8
 cd ${BBDIR}
-git submodule update --init --progress \
-  arch/thirdparty/chipyard \
-  bb-tests/workloads/lib/kernel \
-  bbdev \
-  bebop \
-  compiler/thirdparty/buddy-mlir \
-  docs \
-  thirdparty/waveform-mcp
+git submodule update --init --progress
 
 # I dont know why below is need for chipyard submodules, but it is
 git -C ${BBDIR}/arch/thirdparty/chipyard submodule update --init --progress fpga/fpga-shells
@@ -213,7 +207,14 @@ if run_step "8"; then
   cd ${BBDIR}
   git submodule update --init --progress gem5
   cd ${BBDIR}/gem5
+  chmod +x ./demo_build.sh
   ./demo_build.sh
+fi
+
+if run_step "9"; then
+  begin_step "9" "io_sim install"
+  cd ${BBDIR}/io_sim
+  ./build_io_sim
 fi
 
 begin_step "END" "Setup completed successfully!"
