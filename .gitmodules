@@ -39,3 +39,6 @@
 [submodule "gem5"]
 	path = gem5
 	url = https://github.com/C0smicLu0/gem5-demo.git
+[submodule "io_sim/gem5"]
+	path = io_sim/gem5
+	url = https://github.com/XinlaiWan/gem5
