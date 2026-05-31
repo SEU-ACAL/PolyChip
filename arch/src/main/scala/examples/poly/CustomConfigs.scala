@@ -1,0 +1,21 @@
+package examples.poly
+
+class Poly2CoreVerilatorConfig extends sims.verilator.BuckyballGoban2CoreVerilatorConfig
+
+class Poly4CoreVerilatorConfig extends sims.verilator.BuckyballGoban4CoreVerilatorConfig
+
+class Poly8CoreVerilatorConfig extends sims.verilator.BuckyballGoban2Tile4CoreVerilatorConfig
+
+class Poly16CoreVerilatorConfig extends sims.verilator.BuckyballGoban4Tile4CoreVerilatorConfig
+
+class Poly32CoreVerilatorConfig extends sims.verilator.BuckyballGoban8Tile4CoreVerilatorConfig
+
+class Chipyard2CoreVerilatorConfig extends sims.verilator.Chipyard2CoreVerilatorConfig
+
+class Chipyard4CoreVerilatorConfig extends sims.verilator.Chipyard4CoreVerilatorConfig
+
+class Chipyard8CoreVerilatorConfig extends sims.verilator.Chipyard8CoreVerilatorConfig
+
+class Chipyard16CoreVerilatorConfig extends sims.verilator.Chipyard16CoreVerilatorConfig
+
+class Chipyard32CoreVerilatorConfig extends sims.verilator.Chipyard32CoreVerilatorConfig

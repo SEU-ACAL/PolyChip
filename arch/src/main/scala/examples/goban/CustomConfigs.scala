@@ -102,6 +102,24 @@ class BuckyballGoban2Tile4CoreConfig
         new sims.base.BuckyballBaseConfig
     )
 
+/** 4 BBTiles x 4 Rocket cores each = 16 harts; core 0 in each tile has Buckyball. */
+class BuckyballGoban4Tile4CoreConfig
+    extends Config(
+      new WithGobanHiddenHartIdBits(nTiles = 4, nCoresPerTile = 4, hiddenHartBase = 4) ++
+        new WithBuckyballTiles("src/main/scala/examples/goban/configs/4t4c-private.toml", hiddenHartBase = Some(4)) ++
+        new chipyard.config.WithSystemBusWidth(256) ++
+        new sims.base.BuckyballBaseConfig
+    )
+
+/** 8 BBTiles x 4 Rocket cores each = 32 harts; core 0 in each tile has Buckyball. */
+class BuckyballGoban8Tile4CoreConfig
+    extends Config(
+      new WithGobanHiddenHartIdBits(nTiles = 8, nCoresPerTile = 4, hiddenHartBase = 8) ++
+        new WithBuckyballTiles("src/main/scala/examples/goban/configs/8t4c-private.toml", hiddenHartBase = Some(8)) ++
+        new chipyard.config.WithSystemBusWidth(256) ++
+        new sims.base.BuckyballBaseConfig
+    )
+
 /** 64 BBTiles × 4 Rocket cores each = 256 harts; core 0 in each tile has Buckyball. */
 class BuckyballGoban64Tile4CoreConfig
     extends Config(

@@ -52,6 +52,13 @@ class BuckyballGoban8CoreVerilatorConfig
         new examples.goban.BuckyballGoban8CoreConfig
     )
 
+class BuckyballGoban16CoreVerilatorConfig
+    extends Config(
+      new BBSimConfig ++
+        new WithCustomBootROM ++
+        new examples.goban.BuckyballGoban16CoreConfig
+    )
+
 class BuckyballGoban32CoreVerilatorConfig
     extends Config(
       new BBSimConfig ++
@@ -99,6 +106,20 @@ class BuckyballGoban2Tile4CoreVerilatorConfig
       new BBSimConfig(maxHarts = 8) ++
         new WithCustomBootROM ++
         new examples.goban.BuckyballGoban2Tile4CoreConfig
+    )
+
+class BuckyballGoban4Tile4CoreVerilatorConfig
+    extends Config(
+      new BBSimConfig(maxHarts = 16) ++
+        new WithCustomBootROM ++
+        new examples.goban.BuckyballGoban4Tile4CoreConfig
+    )
+
+class BuckyballGoban8Tile4CoreVerilatorConfig
+    extends Config(
+      new BBSimConfig(maxHarts = 32) ++
+        new WithCustomBootROM ++
+        new examples.goban.BuckyballGoban8Tile4CoreConfig
     )
 
 class BuckyballGoban2Tile4CoreLinuxVerilatorConfig
@@ -175,6 +196,28 @@ class Chipyard8CoreVerilatorConfig
         new chipyard.config.WithNoUART ++
         new chipyard.config.WithNoDebug ++
         new freechips.rocketchip.rocket.WithNHugeCores(8) ++
+        new chipyard.config.AbstractConfig
+    )
+
+class Chipyard16CoreVerilatorConfig
+    extends Config(
+      new BBSimConfig ++
+        new WithCustomBootROM ++
+        new testchipip.serdes.WithNoSerialTL ++
+        new chipyard.config.WithNoUART ++
+        new chipyard.config.WithNoDebug ++
+        new freechips.rocketchip.rocket.WithNHugeCores(16) ++
+        new chipyard.config.AbstractConfig
+    )
+
+class Chipyard32CoreVerilatorConfig
+    extends Config(
+      new BBSimConfig ++
+        new WithCustomBootROM ++
+        new testchipip.serdes.WithNoSerialTL ++
+        new chipyard.config.WithNoUART ++
+        new chipyard.config.WithNoDebug ++
+        new freechips.rocketchip.rocket.WithNHugeCores(32) ++
         new chipyard.config.AbstractConfig
     )
 
