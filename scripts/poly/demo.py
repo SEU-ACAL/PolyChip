@@ -27,8 +27,8 @@ DEMOS = {
     "poly-8-test": ("poly", 8, "examples.poly.Poly8CoreVerilatorConfig"),
     "chipyard-16-test": ("chipyard", 16, "examples.poly.Chipyard16CoreVerilatorConfig"),
     "poly-16-test": ("poly", 16, "examples.poly.Poly16CoreVerilatorConfig"),
-    # "chipyard-32-test": ("chipyard", 32, "examples.poly.Chipyard32CoreVerilatorConfig"),
-    # "poly-32-test": ("poly", 32, "examples.poly.Poly32CoreVerilatorConfig"),
+    "chipyard-32-test": ("chipyard", 32, "examples.poly.Chipyard32CoreVerilatorConfig"),
+    "poly-32-test": ("poly", 32, "examples.poly.Poly32CoreVerilatorConfig"),
 }
 
 
@@ -147,14 +147,17 @@ def write_summary(out: Path, rows: list[dict[str, object]]) -> None:
         "cores",
         "config",
         "workload",
+        "workload_min",
+        "area_time",
+        "codegen_time",
+        "simulation_time",
+        "total_min",
         "area_report",
         "yosys_log_dir",
         "task_cycles",
         "active_harts",
         "task_count",
         "tasks_per_hart",
-        "verilator_run_seconds",
-        "yosys_seconds",
         "sim_log_dir",
     ]
     with (out / "summary.csv").open("w", newline="", encoding="utf-8") as f:
@@ -175,7 +178,7 @@ def main() -> int:
     out = (REPO / "output/poly" / args.test / stamp).resolve()
     out.mkdir(parents=True, exist_ok=True)
 
-    bbdev("workload", "--build", "", out / "logs/workload_build.log")
+    workload_seconds = bbdev("workload", "--build", "", out / "logs/workload_build.log")
 
     rows: list[dict[str, object]] = []
     cfg_out = out / args.test
@@ -184,7 +187,7 @@ def main() -> int:
     yosys_build = out / "build/yosys"
     yosys_log_dir = cfg_out / "yosys_artifacts"
     area_report = ""
-    yosys_seconds = ""
+    yosys_seconds = 0.0
     if not args.skip_area:
         yosys_args = (
             f"--config {config} --top {TOP} --output-dir {yosys_build} "
@@ -199,13 +202,21 @@ def main() -> int:
         )
 
     sim_build = out / "build/verilator"
-    sim_args = (
-        f"--jobs {JOBS} --binary {binary} --config {config} "
-        f"--output-dir {sim_build} --batch"
-    )
+    verilator_common_args = f"--config {config} --output-dir {sim_build}"
+    verilator_build_args = f"--jobs {JOBS} {verilator_common_args}"
+    sim_args = f"--binary {binary} --batch {verilator_common_args}"
     since = time.time()
-    verilator_seconds = bbdev(
-        "verilator", "--run", sim_args, cfg_out / "verilator_run.log"
+    verilog_seconds = bbdev(
+        "verilator",
+        "--verilog",
+        verilator_common_args,
+        cfg_out / "verilator_verilog.log",
+    )
+    build_seconds = bbdev(
+        "verilator", "--build", verilator_build_args, cfg_out / "verilator_build.log"
+    )
+    simulation_seconds = bbdev(
+        "verilator", "--sim", sim_args, cfg_out / "verilator_sim.log"
     )
     sim_log = latest_sim_log(binary, since)
     shutil.copytree(sim_log, cfg_out / "sim_log", dirs_exist_ok=True)
@@ -213,6 +224,10 @@ def main() -> int:
         cfg_out / "sim_log/stdout.log", cores
     )
     sim_log_rel = out_path(cfg_out / "sim_log")
+    codegen_seconds = verilog_seconds + build_seconds
+    total_seconds = (
+        workload_seconds + yosys_seconds + codegen_seconds + simulation_seconds
+    )
 
     rows.append(
         {
@@ -221,14 +236,17 @@ def main() -> int:
             "cores": cores,
             "config": config,
             "workload": binary,
+            "workload_min": workload_seconds / 60.0,
+            "area_time": yosys_seconds / 60.0,
+            "codegen_time": codegen_seconds / 60.0,
+            "simulation_time": simulation_seconds / 60.0,
+            "total_min": total_seconds / 60.0,
             "area_report": area_report,
             "yosys_log_dir": out_path(yosys_log_dir) if not args.skip_area else "",
             "task_cycles": task_cycles,
             "active_harts": active_harts,
             "task_count": task_count,
             "tasks_per_hart": tasks_per_hart,
-            "verilator_run_seconds": verilator_seconds,
-            "yosys_seconds": yosys_seconds,
             "sim_log_dir": sim_log_rel,
         }
     )
