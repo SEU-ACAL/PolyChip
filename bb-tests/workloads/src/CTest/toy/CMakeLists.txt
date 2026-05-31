@@ -68,6 +68,27 @@ function(add_singlecore_baremetal_test_target TEST_NAME SOURCE_FILE)
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${EXECUTABLE})
 endfunction()
 
+function(add_active_harts_baremetal_test_target TEST_NAME SOURCE_FILE ACTIVE_HARTS)
+  set(EXECUTABLE "${TEST_NAME}_${ACTIVE_HARTS}core-baremetal")
+
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${EXECUTABLE}
+    COMMAND ${ELF_CC} ${C_FLAGS} -o ${EXECUTABLE} ${BBSW_BAREMETAL_DIR}/start.S
+      -DACTIVE_HARTS=${ACTIVE_HARTS}
+      ${CTEST_TOY_WORKLOAD_DIR}/buckyball.c
+      ${CTEST_TOY_WORKLOAD_DIR}/${SOURCE_FILE}
+      -I${WORKLOAD_LIB_DIR}
+    DEPENDS ${CTEST_TOY_WORKLOAD_DIR}/${SOURCE_FILE}
+      ${BBSW_BAREMETAL_DIR}/start.S
+      ${CTEST_TOY_WORKLOAD_DIR}/buckyball.c
+    COMMENT "Building ${ACTIVE_HARTS}-hart baremetal executable: ${EXECUTABLE}"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  )
+
+  add_custom_target(${TEST_NAME}_${ACTIVE_HARTS}core_baremetal
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${EXECUTABLE})
+endfunction()
+
 # Create cross-platform test targets
 function(add_cross_platform_test_target TEST_NAME SOURCE_FILE)
   add_linux_test_target(${TEST_NAME} ${SOURCE_FILE})
@@ -128,6 +149,11 @@ add_cross_platform_test_target(ctest_int2fp_test int2fp_test.c)
 add_cross_platform_test_target(ctest_tlb_test tlb_test.c)
 add_cross_platform_test_target(ctest_bdb_counter_test bdb_counter_test.c)
 add_cross_platform_test_target(ctest_batch_matmul batch_matmul.c)
+add_active_harts_baremetal_test_target(ctest_batch_matmul batch_matmul.c 2)
+add_active_harts_baremetal_test_target(ctest_batch_matmul batch_matmul.c 4)
+add_active_harts_baremetal_test_target(ctest_batch_matmul batch_matmul.c 8)
+add_active_harts_baremetal_test_target(ctest_batch_matmul batch_matmul.c 16)
+add_active_harts_baremetal_test_target(ctest_batch_matmul batch_matmul.c 32)
 add_cross_platform_test_target(ctest_gemmini_os_risc_basic_test gemmini_os_risc_basic_test.c)
 add_cross_platform_test_target(ctest_gemmini_os_risc_shift_test gemmini_os_risc_shift_test.c)
 add_cross_platform_test_target(ctest_gemmini_os_risc_atranspose_test gemmini_os_risc_atranspose_test.c)
@@ -177,6 +203,11 @@ add_custom_target(buckyball-CTest-build ALL DEPENDS
   ctest_tlb_test
   ctest_bdb_counter_test
   ctest_batch_matmul
+  ctest_batch_matmul_2core_baremetal
+  ctest_batch_matmul_4core_baremetal
+  ctest_batch_matmul_8core_baremetal
+  ctest_batch_matmul_16core_baremetal
+  ctest_batch_matmul_32core_baremetal
   ctest_mmio_minimal_test
   ctest_scu_uart_rx_echo_test
   ctest_gemmini_os_risc_basic_test

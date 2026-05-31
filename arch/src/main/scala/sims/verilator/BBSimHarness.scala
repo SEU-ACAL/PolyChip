@@ -38,6 +38,7 @@ class BBSimConfig(maxHarts: Int = 64)
     extends Config(
       new WithSCU(maxHarts = maxHarts) ++
         new WithBBSimMem ++
+        new freechips.rocketchip.subsystem.WithoutTLMonitors ++
         new chipyard.config.WithUniformBusFrequencies(1000.0) ++
         new chipyard.harness.WithTieOffInterrupts ++
         new chipyard.harness.WithTieOffL2FBusAXI ++

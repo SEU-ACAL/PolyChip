@@ -16,19 +16,19 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 JOBS = 16
 TOP = "DigitalTop"
-BINARY = "ctest_batch_matmul_singlecore-baremetal"
+WORKLOAD = "ctest_batch_matmul"
 
 DEMOS = {
     "chipyard-2-test": ("chipyard", 2, "examples.poly.Chipyard2CoreVerilatorConfig"),
-    "chipyard-4-test": ("chipyard", 4, "examples.poly.Chipyard4CoreVerilatorConfig"),
-    "chipyard-8-test": ("chipyard", 8, "examples.poly.Chipyard8CoreVerilatorConfig"),
-    "chipyard-16-test": ("chipyard", 16, "examples.poly.Chipyard16CoreVerilatorConfig"),
-    "chipyard-32-test": ("chipyard", 32, "examples.poly.Chipyard32CoreVerilatorConfig"),
     "poly-2-test": ("poly", 2, "examples.poly.Poly2CoreVerilatorConfig"),
+    "chipyard-4-test": ("chipyard", 4, "examples.poly.Chipyard4CoreVerilatorConfig"),
     "poly-4-test": ("poly", 4, "examples.poly.Poly4CoreVerilatorConfig"),
+    "chipyard-8-test": ("chipyard", 8, "examples.poly.Chipyard8CoreVerilatorConfig"),
     "poly-8-test": ("poly", 8, "examples.poly.Poly8CoreVerilatorConfig"),
+    "chipyard-16-test": ("chipyard", 16, "examples.poly.Chipyard16CoreVerilatorConfig"),
     "poly-16-test": ("poly", 16, "examples.poly.Poly16CoreVerilatorConfig"),
-    "poly-32-test": ("poly", 32, "examples.poly.Poly32CoreVerilatorConfig"),
+    # "chipyard-32-test": ("chipyard", 32, "examples.poly.Chipyard32CoreVerilatorConfig"),
+    # "poly-32-test": ("poly", 32, "examples.poly.Poly32CoreVerilatorConfig"),
 }
 
 
@@ -38,6 +38,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "test", choices=sorted(DEMOS), help="Demo name, for example poly-2-test."
+    )
+    parser.add_argument(
+        "--skip-area", action="store_true", help="Skip Yosys area synthesis."
     )
     return parser.parse_args()
 
@@ -90,6 +93,10 @@ def copy_report(src_dir: Path, name: str, dst: Path) -> str:
     return out_path(dst)
 
 
+def binary_name(cores: int) -> str:
+    return f"{WORKLOAD}_{cores}core-baremetal"
+
+
 def latest_sim_log(binary: str, since: float) -> Path:
     root = REPO / "arch/log"
     if not root.exists():
@@ -104,14 +111,33 @@ def latest_sim_log(binary: str, since: float) -> Path:
     return max(dirs, key=lambda p: p.stat().st_mtime)
 
 
-def parse_cycles(stdout_log: Path) -> int:
+def parse_sim_metrics(stdout_log: Path, cores: int) -> tuple[int, int, int, int]:
     text = stdout_log.read_text(encoding="utf-8", errors="replace")
-    m = re.search(r"BATCH_MATMUL_CYCLES=(\d+)", text)
-    if m is None:
+    cycles = re.search(r"BATCH_MATMUL_CYCLES=(\d+)", text)
+    active = re.search(r"BATCH_MATMUL_ACTIVE_HARTS=(\d+)", text)
+    tasks = re.search(r"BATCH_MATMUL_TASKS=(\d+)", text)
+    tasks_per_hart = re.search(r"BATCH_MATMUL_TASKS_PER_HART=(\d+)", text)
+    if cycles is None:
         raise RuntimeError(f"missing BATCH_MATMUL_CYCLES in {stdout_log}")
+    if active is None:
+        raise RuntimeError(f"missing BATCH_MATMUL_ACTIVE_HARTS in {stdout_log}")
+    if tasks is None:
+        raise RuntimeError(f"missing BATCH_MATMUL_TASKS in {stdout_log}")
+    if tasks_per_hart is None:
+        raise RuntimeError(f"missing BATCH_MATMUL_TASKS_PER_HART in {stdout_log}")
     if "batch matmul PASSED" not in text:
         raise RuntimeError(f"missing pass marker in {stdout_log}")
-    return int(m.group(1))
+    active_harts = int(active.group(1))
+    if active_harts != cores:
+        raise RuntimeError(
+            f"active harts mismatch in {stdout_log}: expected {cores}, got {active_harts}"
+        )
+    return (
+        int(cycles.group(1)),
+        active_harts,
+        int(tasks.group(1)),
+        int(tasks_per_hart.group(1)),
+    )
 
 
 def write_summary(out: Path, rows: list[dict[str, object]]) -> None:
@@ -124,6 +150,9 @@ def write_summary(out: Path, rows: list[dict[str, object]]) -> None:
         "area_report",
         "yosys_log_dir",
         "task_cycles",
+        "active_harts",
+        "task_count",
+        "tasks_per_hart",
         "verilator_run_seconds",
         "yosys_seconds",
         "sim_log_dir",
@@ -141,6 +170,7 @@ def write_summary(out: Path, rows: list[dict[str, object]]) -> None:
 def main() -> int:
     args = parse_args()
     family, cores, config = DEMOS[args.test]
+    binary = binary_name(cores)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     out = (REPO / "output/poly" / args.test / stamp).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -153,28 +183,35 @@ def main() -> int:
 
     yosys_build = out / "build/yosys"
     yosys_log_dir = cfg_out / "yosys_artifacts"
-    yosys_args = (
-        f"--config {config} --top {TOP} --output-dir {yosys_build} "
-        f"--log-dir {yosys_log_dir}"
-    )
-    yosys_seconds = bbdev("yosys", "--run", yosys_args, cfg_out / "yosys.log")
-    area_report = copy_report(
-        yosys_log_dir, "area_report.txt", cfg_out / "area_report.txt"
-    )
-    copy_report(yosys_log_dir, "hierarchy_report.txt", cfg_out / "hierarchy_report.txt")
+    area_report = ""
+    yosys_seconds = ""
+    if not args.skip_area:
+        yosys_args = (
+            f"--config {config} --top {TOP} --output-dir {yosys_build} "
+            f"--log-dir {yosys_log_dir}"
+        )
+        yosys_seconds = bbdev("yosys", "--run", yosys_args, cfg_out / "yosys.log")
+        area_report = copy_report(
+            yosys_log_dir, "area_report.txt", cfg_out / "area_report.txt"
+        )
+        copy_report(
+            yosys_log_dir, "hierarchy_report.txt", cfg_out / "hierarchy_report.txt"
+        )
 
     sim_build = out / "build/verilator"
     sim_args = (
-        f"--jobs {JOBS} --binary {BINARY} --config {config} "
+        f"--jobs {JOBS} --binary {binary} --config {config} "
         f"--output-dir {sim_build} --batch"
     )
     since = time.time()
     verilator_seconds = bbdev(
         "verilator", "--run", sim_args, cfg_out / "verilator_run.log"
     )
-    sim_log = latest_sim_log(BINARY, since)
+    sim_log = latest_sim_log(binary, since)
     shutil.copytree(sim_log, cfg_out / "sim_log", dirs_exist_ok=True)
-    task_cycles = parse_cycles(cfg_out / "sim_log/stdout.log")
+    task_cycles, active_harts, task_count, tasks_per_hart = parse_sim_metrics(
+        cfg_out / "sim_log/stdout.log", cores
+    )
     sim_log_rel = out_path(cfg_out / "sim_log")
 
     rows.append(
@@ -183,10 +220,13 @@ def main() -> int:
             "family": family,
             "cores": cores,
             "config": config,
-            "workload": BINARY,
+            "workload": binary,
             "area_report": area_report,
-            "yosys_log_dir": out_path(yosys_log_dir),
+            "yosys_log_dir": out_path(yosys_log_dir) if not args.skip_area else "",
             "task_cycles": task_cycles,
+            "active_harts": active_harts,
+            "task_count": task_count,
+            "tasks_per_hart": tasks_per_hart,
             "verilator_run_seconds": verilator_seconds,
             "yosys_seconds": yosys_seconds,
             "sim_log_dir": sim_log_rel,

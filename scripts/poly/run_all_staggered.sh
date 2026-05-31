@@ -4,6 +4,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DELAY="${DELAY:-30}"
 RUN_ID="$(date +%Y%m%d-%H%M%S)"
+demo_args=()
+if [[ "${SKIP_AREA:-0}" == "1" ]]; then
+  demo_args+=(--skip-area)
+fi
 
 tests=(
   chipyard-2-test
@@ -33,9 +37,9 @@ for test in "${tests[@]}"; do
   {
     echo "test=${test}"
     echo "start=$(date --iso-8601=seconds)"
-    echo "cmd=python3 scripts/poly/demo.py ${test}"
+    echo "cmd=python3 scripts/poly/demo.py ${test} ${demo_args[*]}"
     echo
-    python3 scripts/poly/demo.py "$test"
+    python3 scripts/poly/demo.py "$test" "${demo_args[@]}"
     echo
     echo "end=$(date --iso-8601=seconds)"
   } >"$log" 2>&1 &
