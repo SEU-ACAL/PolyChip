@@ -203,18 +203,18 @@ if run_step "7"; then
 fi
 
 if run_step "8"; then
-  begin_step "8" "gem5 build"
+  begin_step "8" "io_sim install"
+  cd ${BBDIR}/io_sim
+  ./build_io_sim
+fi
+
+if run_step "9"; then
+  begin_step "9" "gem5 build"
   cd ${BBDIR}
   git submodule update --init --progress gem5
   cd ${BBDIR}/gem5
   chmod +x ./demo_build.sh
   ./demo_build.sh
-fi
-
-if run_step "9"; then
-  begin_step "9" "io_sim install"
-  cd ${BBDIR}/io_sim
-  ./build_io_sim
 fi
 
 begin_step "END" "Setup completed successfully!"

@@ -19,3 +19,11 @@ class Chipyard8CoreVerilatorConfig extends sims.verilator.Chipyard8CoreVerilator
 class Chipyard16CoreVerilatorConfig extends sims.verilator.Chipyard16CoreVerilatorConfig
 
 class Chipyard32CoreVerilatorConfig extends sims.verilator.Chipyard32CoreVerilatorConfig
+
+class PolyChipC1Config extends sims.p2e.BuckyballGobanConfig1LinuxP2EConfig
+
+class PolyChipC2Config extends sims.p2e.BuckyballGobanConfig2LinuxP2EConfig
+
+class PolyChipC3Config extends sims.p2e.BuckyballGobanConfig3LinuxP2EConfig
+
+class PolyChipC4Config extends sims.p2e.BuckyballGobanConfig4LinuxP2EConfig
