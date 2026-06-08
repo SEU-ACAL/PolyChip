@@ -16,7 +16,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 JOBS = 16
 TOP = "DigitalTop"
-WORKLOAD = "ctest_batch_matmul"
+CHIPYARD_WORKLOAD = "ctest_chipyard_batch_matmul"
+POLY_WORKLOAD = "ctest_goban_batch_matmul"
 
 DEMOS = {
     "chipyard-2-test": ("chipyard", 2, "examples.poly.Chipyard2CoreVerilatorConfig"),
@@ -93,8 +94,9 @@ def copy_report(src_dir: Path, name: str, dst: Path) -> str:
     return out_path(dst)
 
 
-def binary_name(cores: int) -> str:
-    return f"{WORKLOAD}_{cores}core-baremetal"
+def binary_name(family: str, cores: int) -> str:
+    workload = POLY_WORKLOAD if family == "poly" else CHIPYARD_WORKLOAD
+    return f"{workload}_{cores}core-baremetal"
 
 
 def latest_sim_log(binary: str, since: float) -> Path:
@@ -111,22 +113,28 @@ def latest_sim_log(binary: str, since: float) -> Path:
     return max(dirs, key=lambda p: p.stat().st_mtime)
 
 
-def parse_sim_metrics(stdout_log: Path, cores: int) -> tuple[int, int, int, int]:
-    text = stdout_log.read_text(encoding="utf-8", errors="replace")
+def parse_sim_metrics(sim_log: Path, cores: int) -> tuple[int, int, int, int]:
+    logs = [sim_log / "stdout.log"]
+    uart_dir = sim_log / "uart"
+    if uart_dir.is_dir():
+        logs.extend(sorted(uart_dir.glob("hart-*.log")))
+    text = "\n".join(
+        p.read_text(encoding="utf-8", errors="replace") for p in logs if p.exists()
+    )
     cycles = re.search(r"BATCH_MATMUL_CYCLES=(\d+)", text)
     active = re.search(r"BATCH_MATMUL_ACTIVE_HARTS=(\d+)", text)
     tasks = re.search(r"BATCH_MATMUL_TASKS=(\d+)", text)
     tasks_per_hart = re.search(r"BATCH_MATMUL_TASKS_PER_HART=(\d+)", text)
     if cycles is None:
-        raise RuntimeError(f"missing BATCH_MATMUL_CYCLES in {stdout_log}")
+        raise RuntimeError(f"missing BATCH_MATMUL_CYCLES in {sim_log}")
     if active is None:
-        raise RuntimeError(f"missing BATCH_MATMUL_ACTIVE_HARTS in {stdout_log}")
+        raise RuntimeError(f"missing BATCH_MATMUL_ACTIVE_HARTS in {sim_log}")
     if tasks is None:
-        raise RuntimeError(f"missing BATCH_MATMUL_TASKS in {stdout_log}")
+        raise RuntimeError(f"missing BATCH_MATMUL_TASKS in {sim_log}")
     if tasks_per_hart is None:
-        raise RuntimeError(f"missing BATCH_MATMUL_TASKS_PER_HART in {stdout_log}")
+        raise RuntimeError(f"missing BATCH_MATMUL_TASKS_PER_HART in {sim_log}")
     if "batch matmul PASSED" not in text:
-        raise RuntimeError(f"missing pass marker in {stdout_log}")
+        raise RuntimeError(f"missing pass marker in {sim_log}")
     active_harts = int(active.group(1))
     if active_harts != cores:
         raise RuntimeError(
@@ -173,7 +181,7 @@ def write_summary(out: Path, rows: list[dict[str, object]]) -> None:
 def main() -> int:
     args = parse_args()
     family, cores, config = DEMOS[args.test]
-    binary = binary_name(cores)
+    binary = binary_name(family, cores)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     out = (REPO / "output/poly" / args.test / stamp).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -201,29 +209,37 @@ def main() -> int:
             yosys_log_dir, "hierarchy_report.txt", cfg_out / "hierarchy_report.txt"
         )
 
-    sim_build = out / "build/verilator"
+    sim_build = out / "build/bebop-verilator"
+    sim_log = cfg_out / "sim_log"
     verilator_common_args = f"--config {config} --output-dir {sim_build}"
-    verilator_build_args = f"--jobs {JOBS} {verilator_common_args}"
-    sim_args = f"--binary {binary} --batch {verilator_common_args}"
+    verilator_build_args = f"--jobs {JOBS} --config {config} --vsrc-dir {sim_build}"
+    sim_args = (
+        f"--binary {binary} --batch --no-wave --config {config} "
+        f"--vsrc-dir {sim_build} --log-dir {sim_log}"
+    )
     since = time.time()
     verilog_seconds = bbdev(
-        "verilator",
+        "bebop-verilator",
         "--verilog",
         verilator_common_args,
-        cfg_out / "verilator_verilog.log",
+        cfg_out / "bebop_verilator_verilog.log",
     )
     build_seconds = bbdev(
-        "verilator", "--build", verilator_build_args, cfg_out / "verilator_build.log"
+        "bebop-verilator",
+        "--build",
+        verilator_build_args,
+        cfg_out / "bebop_verilator_build.log",
     )
     simulation_seconds = bbdev(
-        "verilator", "--sim", sim_args, cfg_out / "verilator_sim.log"
+        "bebop-verilator", "--sim", sim_args, cfg_out / "bebop_verilator_sim.log"
     )
-    sim_log = latest_sim_log(binary, since)
-    shutil.copytree(sim_log, cfg_out / "sim_log", dirs_exist_ok=True)
+    if not (sim_log / "uart").exists():
+        fallback_sim_log = latest_sim_log(binary, since)
+        shutil.copytree(fallback_sim_log, sim_log, dirs_exist_ok=True)
     task_cycles, active_harts, task_count, tasks_per_hart = parse_sim_metrics(
-        cfg_out / "sim_log/stdout.log", cores
+        sim_log, cores
     )
-    sim_log_rel = out_path(cfg_out / "sim_log")
+    sim_log_rel = out_path(sim_log)
     codegen_seconds = verilog_seconds + build_seconds
     total_seconds = (
         workload_seconds + yosys_seconds + codegen_seconds + simulation_seconds

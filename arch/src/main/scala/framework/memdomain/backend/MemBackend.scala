@@ -34,28 +34,32 @@ class MemBackend(val b: GlobalConfig) extends Module {
   // Keep the private backend datapath unchanged and isolate it in a dedicated module.
   val privateBackend: Instance[PrivateMemBackend] = Instantiate(new PrivateMemBackend(b))
   private val sharedChannelPerHart = SharedMemLayout.channelPerHart(b)
+  private val sharedEnabled        = b.memDomain.sharedEnable
 
   // Route config to the selected backend only.
-  val cfgToShared = io.config.bits.is_shared
-  privateBackend.io.config.valid := io.config.valid && !cfgToShared
-  privateBackend.io.config.bits  := io.config.bits
-  if (b.memDomain.sharedEnable) {
-    io.shared_config.valid := io.config.valid && cfgToShared
-    io.shared_config.bits  := io.config.bits
-    io.config.ready        := Mux(cfgToShared, io.shared_config.ready, privateBackend.io.config.ready)
-  } else {
-    io.shared_config.valid := false.B
-    io.shared_config.bits  := DontCare
-    io.config.ready        := Mux(cfgToShared, false.B, privateBackend.io.config.ready)
-    when(io.config.valid && cfgToShared) {
-      assert(false.B, "MemBackend shared config received while sharedMem is disabled\n")
-    }
+  val cfgToShared       = io.config.bits.is_shared && sharedEnabled.B
+  val cfgDisabledShared = io.config.bits.is_shared && !sharedEnabled.B
+  when(io.config.fire && io.config.bits.is_shared && !sharedEnabled.B) {
+    assert(false.B, "shared memory config received while sharedMem is disabled")
   }
+  privateBackend.io.config.valid := io.config.valid && !cfgToShared && !cfgDisabledShared
+  privateBackend.io.config.bits  := io.config.bits
+  io.shared_config.valid         := io.config.valid && cfgToShared
+  io.shared_config.bits          := io.config.bits
+  io.config.ready                := Mux(
+    cfgDisabledShared,
+    true.B,
+    Mux(cfgToShared, io.shared_config.ready, privateBackend.io.config.ready)
+  )
 
   // Query routing
   privateBackend.io.query_vbank_id := io.query_vbank_id
   io.shared_query_vbank_id         := io.query_vbank_id
-  io.query_group_count             := Mux(io.query_is_shared, io.shared_query_group_count, privateBackend.io.query_group_count)
+  io.query_group_count             := Mux(
+    io.query_is_shared && sharedEnabled.B,
+    io.shared_query_group_count,
+    privateBackend.io.query_group_count
+  )
 
   // Track whether a vbank is currently allocated in shared backend.
   // Ball requests do not carry explicit shared/private info, so they are routed by this table.
@@ -65,15 +69,15 @@ class MemBackend(val b: GlobalConfig) extends Module {
   val cfgVbankIdx           = io.config.bits.vbank_id(vbankIdxWidth - 1, 0)
   when(io.config.fire) {
     when(io.config.bits.alloc) {
-      when(io.config.bits.is_shared) {
+      when(io.config.bits.is_shared && sharedEnabled.B) {
         sharedAllocByVbank(cfgVbankIdx) := true.B
-      }.otherwise {
+      }.elsewhen(!io.config.bits.is_shared) {
         privateAllocByVbank(cfgVbankIdx) := true.B
       }
     }.otherwise {
-      when(io.config.bits.is_shared) {
+      when(io.config.bits.is_shared && sharedEnabled.B) {
         sharedAllocByVbank(cfgVbankIdx) := false.B
-      }.otherwise {
+      }.elsewhen(!io.config.bits.is_shared) {
         privateAllocByVbank(cfgVbankIdx) := false.B
       }
     }
@@ -115,7 +119,7 @@ class MemBackend(val b: GlobalConfig) extends Module {
       )
     }
     val ballRouteShared    = hasSharedAlloc && !hasPrivateAlloc
-    val useSharedReqRaw    = Mux(isBallChannel.B, ballRouteShared, io.mem_req(i).is_shared)
+    val useSharedReqRaw    = Mux(isBallChannel.B, ballRouteShared, io.mem_req(i).is_shared) && sharedEnabled.B
     val canUseSharedPort   = i < sharedChannelPerHart
     val hasReq             = io.mem_req(i).read.req.valid || io.mem_req(i).write.req.valid
     when(useSharedReqRaw && !canUseSharedPort.B && hasReq) {

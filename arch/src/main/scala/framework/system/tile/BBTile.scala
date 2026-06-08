@@ -648,11 +648,13 @@ class BBTileModuleImp(outer: BBTile) extends BaseTileModuleImp(outer) with HasIC
         }
       }
     } else {
-      for (acc <- enabledAccelerators) {
-        acc.io.shared_config.ready      := false.B
-        acc.io.shared_query_group_count := 0.U
-        when(acc.io.shared_config.valid) {
-          assert(false.B, "Buckyball shared config emitted while sharedMem is disabled\n")
+      for (i <- 0 until nCores) {
+        accelerators(i).foreach { acc =>
+          acc.io.shared_config.ready      := true.B
+          acc.io.shared_query_group_count := 0.U
+          when(acc.io.shared_config.valid) {
+            assert(false.B, "Buckyball shared config emitted while sharedMem is disabled\n")
+          }
         }
       }
     }

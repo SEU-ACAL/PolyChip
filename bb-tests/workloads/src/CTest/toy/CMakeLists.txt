@@ -148,12 +148,6 @@ add_cross_platform_test_target(ctest_fp2int_test fp2int_test.c)
 add_cross_platform_test_target(ctest_int2fp_test int2fp_test.c)
 add_cross_platform_test_target(ctest_tlb_test tlb_test.c)
 add_cross_platform_test_target(ctest_bdb_counter_test bdb_counter_test.c)
-add_cross_platform_test_target(ctest_batch_matmul batch_matmul.c)
-add_active_harts_baremetal_test_target(ctest_batch_matmul batch_matmul.c 2)
-add_active_harts_baremetal_test_target(ctest_batch_matmul batch_matmul.c 4)
-add_active_harts_baremetal_test_target(ctest_batch_matmul batch_matmul.c 8)
-add_active_harts_baremetal_test_target(ctest_batch_matmul batch_matmul.c 16)
-add_active_harts_baremetal_test_target(ctest_batch_matmul batch_matmul.c 32)
 add_cross_platform_test_target(ctest_gemmini_os_risc_basic_test gemmini_os_risc_basic_test.c)
 add_cross_platform_test_target(ctest_gemmini_os_risc_shift_test gemmini_os_risc_shift_test.c)
 add_cross_platform_test_target(ctest_gemmini_os_risc_atranspose_test gemmini_os_risc_atranspose_test.c)
@@ -202,12 +196,6 @@ add_custom_target(buckyball-CTest-build ALL DEPENDS
   ctest_int2fp_test
   ctest_tlb_test
   ctest_bdb_counter_test
-  ctest_batch_matmul
-  ctest_batch_matmul_2core_baremetal
-  ctest_batch_matmul_4core_baremetal
-  ctest_batch_matmul_8core_baremetal
-  ctest_batch_matmul_16core_baremetal
-  ctest_batch_matmul_32core_baremetal
   ctest_mmio_minimal_test
   ctest_scu_uart_rx_echo_test
   ctest_gemmini_os_risc_basic_test

@@ -35,9 +35,7 @@ static void sim_exit(int code) {
   exit(code);
 #else
   *(volatile uint32_t *)0x60000000 = (uint32_t)code;
-  while (1) {
-    asm volatile("wfi");
-  }
+  wait_forever();
 #endif
 }
 
