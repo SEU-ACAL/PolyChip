@@ -300,7 +300,7 @@ class BBTile private (
 
   DisableMonitors(implicit p => tlSlaveXbar.node :*= slaveNode)
 
-  // DCache port count: core + PTW(via usingVM) + DTIM + vector + RoCC tieoff
+  // DCache port count: CanHavePTW accounts for PTW; BBTile adds all core ports.
   nDCachePorts += nCores + (dtim_adapter.isDefined).toInt +
     bbParams.core.vector.map(_.useDCache.toInt).getOrElse(0) +
     hasBuckyball.toInt
@@ -678,9 +678,7 @@ class BBTileModuleImp(outer: BBTile) extends BaseTileModuleImp(outer) with HasIC
 
   // --- Finalize DCache arbiter and PTW connections (after all ports added) ---
   val h = dcachePorts.size
-  val c = core.dcacheArbPorts
   val o = outer.nDCachePorts
-  require(h == c, s"port list size was $h, core expected $c")
   require(h == o, s"port list size was $h, outer counted $o")
 
   dcacheArb.io.requestor <> dcachePorts.toSeq

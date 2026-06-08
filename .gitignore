@@ -39,3 +39,5 @@ vdbg.*
 
 AGENTS.md
 output/
+.codex
+nohup.out
