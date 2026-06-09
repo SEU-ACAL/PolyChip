@@ -10,4 +10,4 @@ bitstreams:
   PolyChipC1Config: bebop/build/examples.poly.PolyChipC1Config-2026-06-05-10-27/fpgaCompDir/bitstream.bit
   PolyChipC2Config: bebop/build/examples.poly.PolyChipC2Config-2026-06-06-01-01/fpgaCompDir/bitstream.bit
   PolyChipC3Config: bebop/build/examples.poly.PolyChipC3Config-2026-06-07-03-33/fpgaCompDir/bitstream.bit
-  PolyChipC4Config: bebop/build/examples.poly.PolyChipC4Config-2026-06-08-02-36/fpgaCompDir/bitstream.bit
+  PolyChipC4Config: bebop/build/examples.poly.PolyChipC4Config-2026-06-08-23-42/fpgaCompDir/bitstream.bit

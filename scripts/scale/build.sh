@@ -6,14 +6,15 @@ cd "$(dirname "$0")/../.."
 cfg="${1:?usage: ./scripts/scale/build.sh PolyChipC1Config}"
 
 case "$cfg" in
-  PolyChipC1Config|PolyChipC2Config|PolyChipC3Config|PolyChipC4Config) ;;
+  PolyChipC1Config|PolyChipC2Config|PolyChipC3Config|PolyChipC4Config)
+    full_cfg="examples.poly.${cfg}"
+    ;;
   *)
     echo "unknown scale config: $cfg" >&2
     exit 1
     ;;
 esac
 
-full_cfg="examples.poly.${cfg}"
 out="output/scale/${cfg}"
 vsrc="${out}/vsrc"
 build="${out}/build"

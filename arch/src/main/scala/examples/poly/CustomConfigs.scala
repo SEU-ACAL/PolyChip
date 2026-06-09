@@ -26,4 +26,4 @@ class PolyChipC2Config extends sims.p2e.BuckyballGobanConfig2LinuxP2EConfig
 
 class PolyChipC3Config extends sims.p2e.BuckyballGobanConfig3LinuxP2EConfig
 
-class PolyChipC4Config extends sims.p2e.BuckyballGobanConfig4LinuxP2EConfig
+class PolyChipC4Config extends sims.p2e.BuckyballGoban64Tile4CoreLinuxP2EConfig

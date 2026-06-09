@@ -7,14 +7,15 @@ cfg="${1:?usage: ./scripts/scale/run.sh PolyChipC1Config}"
 scale_config="${SCALE_CONFIG:-scripts/scale/config/config.yaml}"
 
 case "$cfg" in
-  PolyChipC1Config|PolyChipC2Config|PolyChipC3Config|PolyChipC4Config) ;;
+  PolyChipC1Config|PolyChipC2Config|PolyChipC3Config|PolyChipC4Config)
+    full_cfg="examples.poly.${cfg}"
+    ;;
   *)
     echo "unknown scale config: $cfg" >&2
     exit 1
     ;;
 esac
 
-full_cfg="examples.poly.${cfg}"
 test -f "$scale_config"
 
 yaml_get_top() {
@@ -65,6 +66,9 @@ fi
 out="${output_root}/${cfg}"
 build="$(dirname "$(dirname "$bitstream")")"
 log="${out}/sim"
+fpga="${out}/fpga"
+func="${out}/functional"
+perf="${out}/performance"
 
 if [[ ! -f "$bitstream" ]]; then
   echo "missing bitstream: ${bitstream}" >&2
@@ -88,8 +92,11 @@ if ! command -v bbdev >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "$log"
+mkdir -p "$log" "$fpga" "$func" "$perf"
 log="$(realpath "$log")"
+fpga="$(realpath "$fpga")"
+func="$(realpath "$func")"
+perf="$(realpath "$perf")"
 
 echo "[scale run] config=${full_cfg}"
 echo "[scale run] scale_config=${scale_config}"
@@ -112,5 +119,90 @@ fi
 
 bbdev bebop-p2e --runworkload "$args"
 
+cat > "${fpga}/run.env" <<EOF
+config=${full_cfg}
+scale_config=${scale_config}
+image=${image}
+image_hex=${image_hex}
+bitstream=${bitstream}
+build=${build}
+log=${log}
+multi_fpga=${multi_fpga}
+fpga_location=${fpga_location}
+EOF
+
+ln -sfn "$bitstream" "${fpga}/bitstream.bit"
+ln -sfn "$(realpath "$image_hex")" "${fpga}/workload.hex"
+ln -sfn "$build" "${fpga}/build"
+
+for f in main.tcl sim_exit.flag vdbg.log tb_bebop.log tb_SimCtl.log tb_rbsrv.log; do
+  if [[ -f "${build}/${f}" ]]; then
+    cp "${build}/${f}" "${fpga}/${f}"
+  fi
+done
+if [[ -f "${build}/vvacDir/runtimeDir/rtcfg" ]]; then
+  cp "${build}/vvacDir/runtimeDir/rtcfg" "${fpga}/rtcfg"
+fi
+if [[ -f "${log}/console.sock.path" ]]; then
+  cp "${log}/console.sock.path" "${fpga}/console.sock.path"
+fi
+
+if [[ ! -f "${log}/uart.log" ]]; then
+  echo "missing simulation uart log: ${log}/uart.log" >&2
+  exit 1
+fi
+
+cp "${log}/uart.log" "${func}/uart.log"
+if [[ -f "${log}/uart_hart_0.log" ]]; then
+  cp "${log}/uart_hart_0.log" "${func}/uart_hart_0.log"
+fi
+
+if grep -qE "FAIL|failures=[1-9][0-9]*|Incorrect operation|ERROR" "${func}/uart.log"; then
+  status=FAIL
+else
+  status=PASS
+fi
+cat > "${func}/status.txt" <<EOF
+status=${status}
+uart_log=${func}/uart.log
+EOF
+
+if grep -q '^embench ' "${log}/uart.log"; then
+  awk '
+    BEGIN { print "benchmark,cycles,result,status" }
+    /^embench / {
+      name = $2
+      cycles = ""
+      result = ""
+      status = $NF
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /^cycles=/) {
+          cycles = $i
+          sub(/^cycles=/, "", cycles)
+        }
+        if ($i ~ /^result=/) {
+          result = $i
+          sub(/^result=/, "", result)
+        }
+      }
+      print name "," cycles "," result "," status
+    }
+  ' "${log}/uart.log" > "${perf}/embench.csv"
+  grep '^Embench top total cycles=' "${log}/uart.log" > "${perf}/summary.txt"
+elif grep -qE '^Total ticks|^Iterations|^Correct operation validated' "${log}/uart.log"; then
+  awk -F: '
+    BEGIN { print "metric,value" }
+    /^Total ticks/ { gsub(/^[ \t]+/, "", $2); print "total_ticks," $2 }
+    /^Iterations/ { gsub(/^[ \t]+/, "", $2); print "iterations," $2 }
+    /^Correct operation validated/ { print "validated,1" }
+  ' "${log}/uart.log" > "${perf}/coremark.csv"
+  cp "${log}/uart.log" "${perf}/summary.txt"
+else
+  echo "missing known performance markers in ${log}/uart.log" >&2
+  exit 1
+fi
+
 echo "[scale run] simulation log=${log}"
-echo "[scale run] performance result=${log}"
+echo "[scale run] fpga runtime=${fpga}"
+echo "[scale run] functional result=${func}"
+echo "[scale run] performance result=${perf}"
