@@ -16,7 +16,10 @@ case "$cfg" in
     ;;
 esac
 
-test -f "$scale_config"
+if [[ ! -f "$scale_config" ]]; then
+  echo "missing scale config: ${scale_config}" >&2
+  exit 1
+fi
 
 yaml_get_top() {
   local key="$1"
@@ -197,6 +200,33 @@ elif grep -qE '^Total ticks|^Iterations|^Correct operation validated' "${log}/ua
     /^Correct operation validated/ { print "validated,1" }
   ' "${log}/uart.log" > "${perf}/coremark.csv"
   cp "${log}/uart.log" "${perf}/summary.txt"
+elif grep -q '^DNNTest .* cycles=' "${log}/uart.log"; then
+  awk '
+    BEGIN { print "model,cycles,class,status" }
+    /^DNNTest .* cycles=/ {
+      model = $2
+      cycles = ""
+      cls = ""
+      status = $NF
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /^cycles=/) {
+          cycles = $i
+          sub(/^cycles=/, "", cycles)
+        }
+        if ($i ~ /^class=/) {
+          cls = $i
+          sub(/^class=/, "", cls)
+        }
+      }
+      if (model == "total") {
+        failures = status
+        sub(/^failures=/, "", failures)
+        status = failures == "0" ? "PASS" : "FAIL"
+      }
+      print model "," cycles "," cls "," status
+    }
+  ' "${log}/uart.log" > "${perf}/dnntest.csv"
+  grep '^DNNTest total cycles=' "${log}/uart.log" > "${perf}/summary.txt"
 else
   echo "missing known performance markers in ${log}/uart.log" >&2
   exit 1

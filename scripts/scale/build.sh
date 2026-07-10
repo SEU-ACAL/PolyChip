@@ -19,6 +19,12 @@ out="output/scale/${cfg}"
 vsrc="${out}/vsrc"
 build="${out}/build"
 
+if ! command -v bbdev >/dev/null 2>&1; then
+  echo "missing command: bbdev" >&2
+  echo "enter nix develop first, or run: nix develop -c ./scripts/scale/build.sh ${cfg}" >&2
+  exit 1
+fi
+
 mkdir -p "$out"
 
 echo "[scale build] config=${full_cfg}"
