@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
-cfg="${1:?usage: ./scripts/scale/run.sh PolyChipC1Config}"
+cfg="${1:?usage: ./scripts/scale/run.sh PolyChipC1Config [workload] [bitstream]}"
 scale_config="${SCALE_CONFIG:-scripts/scale/config/config.yaml}"
 
 case "$cfg" in
@@ -42,6 +42,11 @@ bitstream="${3:-$(yaml_get_section bitstreams "$cfg")}"
 fpga_location="$(yaml_get_section fpga location)"
 multi_fpga="$(yaml_get_section fpga multi_fpga)"
 
+if [[ "$image" != *_singlecore-baremetal ]]; then
+  image="${image}_singlecore-baremetal"
+fi
+workload="${image%_singlecore-baremetal}"
+
 if [[ -z "$output_root" ]]; then
   echo "missing output_root in ${scale_config}" >&2
   exit 1
@@ -67,11 +72,12 @@ if [[ "$multi_fpga" == false && -z "$fpga_location" ]]; then
 fi
 
 out="${output_root}/${cfg}"
+run="${out}/${workload}"
 build="$(dirname "$(dirname "$bitstream")")"
-log="${out}/sim"
+log="${run}/sim"
 fpga="${out}/fpga"
-func="${out}/functional"
-perf="${out}/performance"
+func="${run}/functional"
+perf="${run}/performance"
 
 if [[ ! -f "$bitstream" ]]; then
   echo "missing bitstream: ${bitstream}" >&2
@@ -95,11 +101,23 @@ if ! command -v bbdev >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "$log" "$fpga" "$func" "$perf"
+mkdir -p "$run" "$log" "$fpga" "$func" "$perf"
+run="$(realpath "$run")"
 log="$(realpath "$log")"
 fpga="$(realpath "$fpga")"
 func="$(realpath "$func")"
 perf="$(realpath "$perf")"
+
+rm -f \
+  "${log}/uart.log" \
+  "${log}/uart_hart_0.log" \
+  "${func}/uart.log" \
+  "${func}/uart_hart_0.log" \
+  "${func}/status.txt" \
+  "${perf}/embench.csv" \
+  "${perf}/coremark.csv" \
+  "${perf}/dnntest.csv" \
+  "${perf}/summary.txt"
 
 echo "[scale run] config=${full_cfg}"
 echo "[scale run] scale_config=${scale_config}"
@@ -122,7 +140,7 @@ fi
 
 bbdev bebop-p2e --runworkload "$args"
 
-cat > "${fpga}/run.env" <<EOF
+cat > "${run}/run.env" <<EOF
 config=${full_cfg}
 scale_config=${scale_config}
 image=${image}
@@ -130,13 +148,14 @@ image_hex=${image_hex}
 bitstream=${bitstream}
 build=${build}
 log=${log}
+fpga=${fpga}
 multi_fpga=${multi_fpga}
 fpga_location=${fpga_location}
 EOF
 
 ln -sfn "$bitstream" "${fpga}/bitstream.bit"
-ln -sfn "$(realpath "$image_hex")" "${fpga}/workload.hex"
 ln -sfn "$build" "${fpga}/build"
+ln -sfn "$(realpath "$image_hex")" "${run}/workload.hex"
 
 for f in main.tcl sim_exit.flag vdbg.log tb_bebop.log tb_SimCtl.log tb_rbsrv.log; do
   if [[ -f "${build}/${f}" ]]; then
@@ -147,7 +166,7 @@ if [[ -f "${build}/vvacDir/runtimeDir/rtcfg" ]]; then
   cp "${build}/vvacDir/runtimeDir/rtcfg" "${fpga}/rtcfg"
 fi
 if [[ -f "${log}/console.sock.path" ]]; then
-  cp "${log}/console.sock.path" "${fpga}/console.sock.path"
+  cp "${log}/console.sock.path" "${run}/console.sock.path"
 fi
 
 if [[ ! -f "${log}/uart.log" ]]; then
