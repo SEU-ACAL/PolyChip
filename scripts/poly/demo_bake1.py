@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import filecmp
 import json
 import re
 import shutil
@@ -23,6 +24,23 @@ POLY_AREA_TOPS = {
     cores: ["TilePRCIDomain"] + [f"TilePRCIDomain_{i}" for i in range(1, cores)]
     for cores in (2, 4, 8, 16, 32)
 }
+WORKLOAD_ROOT = REPO / "bb-tests/output/workloads/src"
+RUNTIME_VSRC = {
+    "poly": Path(
+        "/home/mio/Code/PolyChip/output/poly/poly-2-test/20260712-004930/build/bebop-verilator"
+    ),
+    "chipyard": Path(
+        "/home/mio/Code/PolyChip/output/poly/chipyard-2-test/20260713-023051/build/bebop-verilator"
+    ),
+}
+RUNTIME_YOSYS = {
+    "poly": Path(
+        "/home/mio/Code/PolyChip/output/poly/poly-2-test/20260712-004930/build/yosys"
+    ),
+    "chipyard": Path(
+        "/home/mio/Code/PolyChip/output/poly/chipyard-2-test/20260713-023051/build/yosys"
+    ),
+}
 
 DEMOS = {
     "chipyard-2-test": ("chipyard", 2, "examples.poly.Chipyard2CoreVerilatorConfig"),
@@ -36,6 +54,16 @@ DEMOS = {
     "chipyard-32-test": ("chipyard", 32, "examples.poly.Chipyard32CoreVerilatorConfig"),
     "poly-32-test": ("poly", 32, "examples.poly.Poly32CoreVerilatorConfig"),
 }
+
+
+def runtime_demo(family: str, cores: int, config: str) -> tuple[int, str, bool]:
+    if cores == 2:
+        return cores, config, False
+    runtime_key = f"{family}-2-test"
+    if runtime_key not in DEMOS:
+        raise RuntimeError(f"missing 2-core runtime demo: {runtime_key}")
+    _, runtime_cores, runtime_config = DEMOS[runtime_key]
+    return runtime_cores, runtime_config, True
 
 
 def parse_args() -> argparse.Namespace:
@@ -217,6 +245,92 @@ def binary_name(family: str, cores: int) -> str:
     return f"{workload}_{cores}core-baremetal"
 
 
+def find_workload(name: str) -> Path:
+    if not WORKLOAD_ROOT.is_dir():
+        raise RuntimeError(f"missing workload root: {WORKLOAD_ROOT}")
+    matches = sorted(p for p in WORKLOAD_ROOT.rglob(name) if p.is_file())
+    if len(matches) != 1:
+        raise RuntimeError(
+            f"expected exactly 1 workload binary named {name} under "
+            f"{WORKLOAD_ROOT}, got {len(matches)}: {matches}"
+        )
+    return matches[0]
+
+
+def install_runtime_workload(family: str, src_cores: int, dst_cores: int) -> str:
+    """Copy src-core binary over dst-core name so sim uses the dst name.
+
+    Must run immediately before sim: concurrent `bbdev workload --build` restores
+    the real dst-core ELF and will hang a 2-core RTL waiting for missing harts.
+    """
+    src_name = binary_name(family, src_cores)
+    dst_name = binary_name(family, dst_cores)
+    if src_name == dst_name:
+        return dst_name
+
+    src = find_workload(src_name)
+    dst_matches = sorted(p for p in WORKLOAD_ROOT.rglob(dst_name) if p.is_file())
+    if len(dst_matches) > 1:
+        raise RuntimeError(
+            f"expected at most 1 workload binary named {dst_name} under "
+            f"{WORKLOAD_ROOT}, got {len(dst_matches)}: {dst_matches}"
+        )
+    dst = dst_matches[0] if dst_matches else src.with_name(dst_name)
+    shutil.copy2(src, dst)
+    if not filecmp.cmp(src, dst, shallow=False):
+        raise RuntimeError(f"workload install mismatch after copy: {src} -> {dst}")
+    return dst_name
+
+
+def runtime_prebuilt(family: str, kind: str) -> Path:
+    if kind == "bebop-verilator":
+        table = RUNTIME_VSRC
+    elif kind == "yosys":
+        table = RUNTIME_YOSYS
+    else:
+        raise RuntimeError(f"unknown runtime prebuilt kind: {kind}")
+    if family not in table:
+        raise RuntimeError(f"missing runtime prebuilt mapping for {family}/{kind}")
+    path = table[family]
+    if not path.is_dir():
+        raise RuntimeError(f"missing prebuilt 2-core {kind} for {family}: {path}")
+    return path
+
+
+def replace_vsrc(dst: Path, src: Path) -> None:
+    src = src.resolve()
+    dst = dst.resolve()
+    if not src.is_dir():
+        raise RuntimeError(f"missing runtime verilog dir: {src}")
+    if src == dst:
+        raise RuntimeError(f"runtime verilog src and dst must differ: {src}")
+    if dst.exists():
+        shutil.rmtree(dst)
+    shutil.copytree(src, dst)
+
+
+def ensure_yosys_sources(build_dir: Path) -> None:
+    src_list = build_dir / "yosys_sources.list"
+    if not src_list.is_file():
+        raise RuntimeError(f"missing yosys_sources.list: {src_list}")
+    missing: list[str] = []
+    count = 0
+    for raw in src_list.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        count += 1
+        if not Path(line).is_file():
+            missing.append(line)
+    if count == 0:
+        raise RuntimeError(f"empty yosys_sources.list: {src_list}")
+    if missing:
+        raise RuntimeError(
+            f"yosys_sources.list has {len(missing)} missing files: "
+            + ", ".join(missing[:5])
+        )
+
+
 def parse_sim_metrics(sim_log: Path, cores: int) -> tuple[int, int, int, int]:
     logs = [sim_log / "stdout.log"]
     uart_dir = sim_log / "uart"
@@ -268,6 +382,10 @@ def write_summary(out: Path, rows: list[dict[str, object]]) -> None:
         "family",
         "cores",
         "config",
+        "runtime_cores",
+        "runtime_config",
+        "requested_vsrc_dir",
+        "runtime_vsrc_dir",
         "workload",
         "workload_min",
         "area_time",
@@ -295,8 +413,10 @@ def write_summary(out: Path, rows: list[dict[str, object]]) -> None:
 def main() -> int:
     args = parse_args()
     family, cores, config = DEMOS[args.test]
+    runtime_cores, runtime_config, use_runtime_verilog = runtime_demo(
+        family, cores, config
+    )
 
-    binary = binary_name(family, cores)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     out = (REPO / "output/poly" / args.test / stamp).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -312,28 +432,49 @@ def main() -> int:
     area_report = ""
     yosys_seconds = 0.0
 
-    sim_build = out / "build/bebop-verilator"
+    requested_sim_build = (out / "build/bebop-verilator").resolve()
+    sim_build = requested_sim_build
     sim_log = cfg_out / "sim_log"
-    verilator_common_args = f"--config {config} --output-dir {sim_build}"
-    verilator_build_args = f"--jobs {JOBS} --config {config} --vsrc-dir {sim_build}"
+    prebuilt_vsrc = (
+        runtime_prebuilt(family, "bebop-verilator")
+        if use_runtime_verilog
+        else sim_build
+    )
+    prebuilt_yosys = (
+        runtime_prebuilt(family, "yosys") if use_runtime_verilog else yosys_build
+    )
+
+    requested_verilator_args = f"--config {config} --output-dir {requested_sim_build}"
+    verilator_build_args = (
+        f"--jobs {JOBS} --config {runtime_config} --vsrc-dir {sim_build}"
+    )
     trace_args = ""
     if family == "chipyard":
         trace_args = " --itrace --mtrace --pmctrace --ctrace --banktrace"
-    sim_args = (
-        f"--binary {binary} --batch --no-wave --config {config} "
-        f"--vsrc-dir {sim_build} --log-dir {sim_log}{trace_args}"
-    )
+
     verilog_seconds = bbdev(
         "bebop-verilator",
         "--verilog",
-        verilator_common_args,
+        requested_verilator_args,
         cfg_out / "bebop_verilator_verilog.log",
     )
+
+    if use_runtime_verilog:
+        replace_vsrc(requested_sim_build, prebuilt_vsrc)
+
     build_seconds = bbdev(
         "bebop-verilator",
         "--build",
         verilator_build_args,
         cfg_out / "bebop_verilator_build.log",
+    )
+
+    # Install immediately before sim so a concurrent workload --build cannot
+    # restore the real N-core ELF between rename and ELF load.
+    binary = install_runtime_workload(family, runtime_cores, cores)
+    sim_args = (
+        f"--binary {binary} --batch --no-wave --config {runtime_config} "
+        f"--vsrc-dir {sim_build} --log-dir {sim_log}{trace_args}"
     )
     simulation_seconds = bbdev(
         "bebop-verilator", "--sim", sim_args, cfg_out / "bebop_verilator_sim.log"
@@ -343,15 +484,25 @@ def main() -> int:
             f"missing expected simulation UART log directory: {sim_log / 'uart'}"
         )
     task_cycles, active_harts, task_count, tasks_per_hart = parse_sim_metrics(
-        sim_log, cores
+        sim_log, runtime_cores
     )
     sim_log_rel = out_path(sim_log)
 
-    yosys_args = (
-        f"--config {config} --top {TOP} --output-dir {yosys_build} "
-        f"--log-dir {yosys_log_dir}"
-    )
-    yosys_seconds = bbdev("yosys", "--run", yosys_args, cfg_out / "yosys.log")
+    if use_runtime_verilog:
+        # Use the prebuilt absolute yosys RTL tree as-is (list has abs paths,
+        # including dpi_stubs outside build/yosys).
+        ensure_yosys_sources(prebuilt_yosys)
+        yosys_args = (
+            f"--config {runtime_config} --top {TOP} --output-dir {prebuilt_yosys} "
+            f"--log-dir {yosys_log_dir}"
+        )
+        yosys_seconds = bbdev("yosys", "--synth", yosys_args, cfg_out / "yosys.log")
+    else:
+        yosys_args = (
+            f"--config {config} --top {TOP} --output-dir {yosys_build} "
+            f"--log-dir {yosys_log_dir}"
+        )
+        yosys_seconds = bbdev("yosys", "--run", yosys_args, cfg_out / "yosys.log")
     area_report = copy_report(
         yosys_log_dir, "area_report.txt", cfg_out / "area_report.txt"
     )
@@ -368,6 +519,10 @@ def main() -> int:
             "family": family,
             "cores": cores,
             "config": config,
+            "runtime_cores": runtime_cores,
+            "runtime_config": runtime_config,
+            "requested_vsrc_dir": out_path(requested_sim_build),
+            "runtime_vsrc_dir": out_path(prebuilt_vsrc),
             "workload": binary,
             "workload_min": workload_seconds / 60.0,
             "area_time": yosys_seconds / 60.0,

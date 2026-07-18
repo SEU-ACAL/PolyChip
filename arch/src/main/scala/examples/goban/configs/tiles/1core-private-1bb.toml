@@ -1,0 +1,19 @@
+# Goban Tile (1 core with Buckyball)
+
+[privateDCache]
+enable = true
+ways = 4
+capacityKB = 256
+writeBytes = 8
+portFactor = 2
+memCycles = 10
+
+[sharedMem]
+enable = false
+entries = 16384
+inputChannels = 7
+defaultGroupCount = 1
+memCycles = 10
+
+[[cores]]
+include = "cores/default.toml"

@@ -6,7 +6,8 @@
 
 #define DIM 16
 #define TASKS 32
-#define READY_MAGIC 1U
+#define READY_PASS 1U
+#define READY_FAIL 2U
 #define READY_TIMEOUT 0x4000000U
 
 #ifndef NTILES
@@ -130,30 +131,37 @@ static void print_summary_u32(const char *name, uint32_t value) {
   scu_puts(0, "\n");
 }
 
-static volatile uint64_t tile_cycles[GOBAN_MAX_TILES]
-    __attribute__((aligned(64)));
-static volatile uint32_t tile_done[GOBAN_MAX_TILES]
-    __attribute__((aligned(64)));
-static volatile uint32_t tile_status[GOBAN_MAX_TILES]
-    __attribute__((aligned(64)));
+static void mark_done(int hart, int failed) {
+  scu_set_ready(hart, failed ? READY_FAIL : READY_PASS);
+}
 
-static void mark_ready(int hart) { scu_set_ready(hart, READY_MAGIC); }
-
-static int wait_all_harts_ready(void) {
+static int wait_all_harts_done(void) {
   for (uint32_t wait = 0; wait < READY_TIMEOUT; wait++) {
     int missing = -1;
+    int any_failed = 0;
     for (int hart = 0; hart < TOTAL_HARTS; hart++) {
-      if (scu_get_ready(hart) != READY_MAGIC) {
+      uint8_t value = scu_get_ready(hart);
+      if (value == READY_FAIL) {
+        any_failed = 1;
+      } else if (value != READY_PASS) {
         missing = hart;
         break;
       }
     }
     if (missing < 0) {
-      return 1;
+      return any_failed ? 0 : 1;
     }
     asm volatile("nop" ::: "memory");
   }
-  return 0;
+  return -1;
+}
+
+static void print_hart_cycles(int hart, uint64_t cycles) {
+  scu_puts(hart, "BATCH_MATMUL_HART_CYCLES=");
+  scu_put_u32(hart, (uint32_t)hart);
+  scu_puts(hart, ",");
+  print_u64_scu(hart, cycles);
+  scu_puts(hart, "\n");
 }
 
 int main(void) {
@@ -170,7 +178,7 @@ int main(void) {
   }
 
   if (cid != 0) {
-    mark_ready(hart);
+    mark_done(hart, 0);
     wait_forever();
   }
 
@@ -194,35 +202,20 @@ int main(void) {
     print_progress(hart, job);
   }
 
-  tile_cycles[tile] = cycles;
-  tile_status[tile] = (uint32_t)failed;
-  __sync_synchronize();
-  tile_done[tile] = 1;
-  mark_ready(hart);
+  print_hart_cycles(hart, cycles);
+  mark_done(hart, failed);
 
   if (hart != 0) {
     wait_forever();
   }
 
-  if (!wait_all_harts_ready()) {
+  int done_status = wait_all_harts_done();
+  if (done_status < 0) {
     scu_puts(0, "batch matmul ready timeout\n");
     sim_exit(1);
   }
 
-  uint64_t max_cycles = 0;
-  int any_failed = failed;
-  for (int i = 0; i < NTILES; i++) {
-    while (tile_done[i] == 0) {
-    }
-    if (tile_status[i] != 0) {
-      any_failed = 1;
-    }
-    if (tile_cycles[i] > max_cycles) {
-      max_cycles = tile_cycles[i];
-    }
-  }
-
-  if (any_failed) {
+  if (done_status == 0) {
     sim_exit(1);
   }
 
@@ -230,7 +223,7 @@ int main(void) {
   print_summary_u32("BATCH_MATMUL_TASKS=", TASKS);
   print_summary_u32("BATCH_MATMUL_TASKS_PER_HART=", TASKS / NTILES);
   scu_puts(0, "BATCH_MATMUL_CYCLES=");
-  print_u64_scu(0, max_cycles);
+  print_u64_scu(0, cycles);
   scu_puts(0, "\n");
   scu_puts(0, "batch matmul PASSED\n");
   sim_exit(0);

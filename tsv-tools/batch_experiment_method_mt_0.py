@@ -387,7 +387,6 @@ def update_aggregate(
 def finalize_pdf_row(
     failure_rate_pct: int,
     layers: int,
-    grid_factor: int,
     slot: Dict[str, float],
 ) -> Dict[str, str]:
     runs = int(slot["runs"])
@@ -395,13 +394,9 @@ def finalize_pdf_row(
         slot["horizontal_distance_sum"] / runs if runs else 0.0
     )
     correct_rate = slot["correct_rate_sum"] / runs if runs else 0.0
-
-    a = layers * grid_factor * 40
-    array_size = f"{a} × {a}"  # 注意这里是“表达式形式”，不是算出 a*a
-
     return {
         "总故障率": f"{failure_rate_pct}%",
-        "阵列大小": array_size,
+        "层数": str(layers),
         "Horizontal Distance": f"{average_horizontal_distance:.6f}",
         "正确率": f"{correct_rate:.6f}%",
     }
@@ -500,10 +495,9 @@ def main() -> int:
     legacy_table_csv = output_dir / "experiment_method_summary.csv"
     table_tsv = output_dir / "experiment_method_summary.tsv"
     table_md = output_dir / "experiment_method_summary.md"
-
     table_fieldnames = [
         "总故障率",
-        "阵列大小",
+        "层数",
         "Horizontal Distance",
         "正确率",
     ]
@@ -598,9 +592,7 @@ def main() -> int:
             if key not in aggregate:
                 continue
             written_rows.append(
-                finalize_pdf_row(
-                    failure_rate_pct, layers, args.grid_factor, aggregate[key]
-                )
+                finalize_pdf_row(failure_rate_pct, layers, aggregate[key])
             )
 
     legacy_table_csv.unlink(missing_ok=True)

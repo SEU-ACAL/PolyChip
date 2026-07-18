@@ -1,0 +1,8 @@
+# Goban - 16 tiles x 1 Buckyball core each (16 harts total)
+
+[top]
+nTiles = 16
+
+[tileTemplate]
+include = "tiles/1core-private-1bb.toml"
+count = 16

@@ -73,6 +73,41 @@ class BuckyballGoban64CoreVerilatorConfig
         new examples.goban.BuckyballGoban64CoreConfig
     )
 
+class BuckyballGoban2Tile1CoreVerilatorConfig
+    extends Config(
+      new BBSimConfig(maxHarts = 2) ++
+        new WithCustomBootROM ++
+        new examples.goban.BuckyballGoban2Tile1CoreConfig
+    )
+
+class BuckyballGoban4Tile1CoreVerilatorConfig
+    extends Config(
+      new BBSimConfig(maxHarts = 4) ++
+        new WithCustomBootROM ++
+        new examples.goban.BuckyballGoban4Tile1CoreConfig
+    )
+
+class BuckyballGoban8Tile1CoreVerilatorConfig
+    extends Config(
+      new BBSimConfig(maxHarts = 8) ++
+        new WithCustomBootROM ++
+        new examples.goban.BuckyballGoban8Tile1CoreConfig
+    )
+
+class BuckyballGoban16Tile1CoreVerilatorConfig
+    extends Config(
+      new BBSimConfig(maxHarts = 16) ++
+        new WithCustomBootROM ++
+        new examples.goban.BuckyballGoban16Tile1CoreConfig
+    )
+
+class BuckyballGoban32Tile1CoreVerilatorConfig
+    extends Config(
+      new BBSimConfig(maxHarts = 32) ++
+        new WithCustomBootROM ++
+        new examples.goban.BuckyballGoban32Tile1CoreConfig
+    )
+
 class BuckyballGoban4Tile8CoreVerilatorConfig
     extends Config(
       new BBSimConfig ++

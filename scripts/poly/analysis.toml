@@ -1,0 +1,52 @@
+title = "Poly vs Chipyard Total Time"
+output = "analysis.png"
+
+[[inputs]]
+system = "chipyard"
+cores = 2
+path = "/home/mio/Code/PolyChip/output/poly/chipyard-2-test/20260714-104419/summary.json"
+
+[[inputs]]
+system = "poly"
+cores = 2
+path = "/home/mio/Code/PolyChip/output/poly/poly-2-test/20260712-004930/summary.json"
+
+[[inputs]]
+system = "chipyard"
+cores = 4
+path = "/home/mio/Code/PolyChip/output/poly/chipyard-4-test/20260713-034328/summary.json"
+
+[[inputs]]
+system = "poly"
+cores = 4
+path = "/home/mio/Code/PolyChip/output/poly/poly-4-test/20260712-022149/summary.json"
+
+[[inputs]]
+system = "chipyard"
+cores = 8
+path = "/home/mio/Code/PolyChip/output/poly/chipyard-8-test/20260712-194949/summary.json"
+
+[[inputs]]
+system = "poly"
+cores = 8
+path = "/home/mio/Code/PolyChip/output/poly/poly-8-test/20260712-035057/summary.json"
+
+[[inputs]]
+system = "chipyard"
+cores = 16
+path = "/home/mio/Code/PolyChip/output/poly/chipyard-16-test/20260713-220326/summary.json"
+
+[[inputs]]
+system = "poly"
+cores = 16
+path = "/home/mio/Code/PolyChip/output/poly/poly-16-test/20260713-153657/summary.json"
+
+[[inputs]]
+system = "chipyard"
+cores = 32
+path = "/home/mio/Code/PolyChip/output/poly/chipyard-32-test/20260713-234338/summary.json"
+
+[[inputs]]
+system = "poly"
+cores = 32
+path = "/home/mio/Code/PolyChip/output/poly/poly-32-test/20260713-135016/summary.json"

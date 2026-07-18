@@ -4,52 +4,51 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DELAY="${DELAY:-30}"
 RUN_ID="$(date +%Y%m%d-%H%M%S)"
-demo_args=()
-if [[ "${SKIP_AREA:-0}" == "1" ]]; then
-  demo_args+=(--skip-area)
-fi
 
-tests=(
-  chipyard-2-test
-  chipyard-4-test
-  chipyard-8-test
-  chipyard-16-test
-  chipyard-32-test
-  poly-2-test
-  poly-4-test
-  poly-8-test
-  poly-16-test
-  poly-32-test
-)
-
-pids=()
+cores=(2 4 8 16 32)
 
 cd "$ROOT"
 log_root="output/poly/launcher-logs/${RUN_ID}"
 mkdir -p "$log_root"
 echo "Launcher log dir: ${log_root}"
 
-for test in "${tests[@]}"; do
-  test_log_dir="${log_root}/${test}"
-  mkdir -p "$test_log_dir"
-  log="${test_log_dir}/stdout.log"
-  echo "Starting ${test}, stdout: ${log}" | tee -a "${log_root}/launcher.log"
-  {
-    echo "test=${test}"
-    echo "start=$(date --iso-8601=seconds)"
-    echo "cmd=python3 scripts/poly/demo.py ${test} ${demo_args[*]}"
-    echo
-    python3 scripts/poly/demo.py "$test" "${demo_args[@]}"
-    echo
-    echo "end=$(date --iso-8601=seconds)"
-  } >"$log" 2>&1 &
-  pids+=("$!")
-  sleep "$DELAY"
-done
-
 rc=0
-for pid in "${pids[@]}"; do
-  if ! wait "$pid"; then
+for core in "${cores[@]}"; do
+  group_tests=(
+    "chipyard-${core}-test"
+    "poly-${core}-test"
+  )
+  group_pids=()
+
+  echo "Starting ${core}-core group" | tee -a "${log_root}/launcher.log"
+  for test in "${group_tests[@]}"; do
+    test_log_dir="${log_root}/${test}"
+    mkdir -p "$test_log_dir"
+    log="${test_log_dir}/stdout.log"
+    echo "Starting ${test}, stdout: ${log}" | tee -a "${log_root}/launcher.log"
+    {
+      echo "test=${test}"
+      echo "group=${core}-core"
+      echo "start=$(date --iso-8601=seconds)"
+      echo "cmd=python3 scripts/poly/demo.py ${test}"
+      echo
+      python3 scripts/poly/demo.py "$test"
+      echo
+      echo "end=$(date --iso-8601=seconds)"
+    } >"$log" 2>&1 &
+    group_pids+=("$!")
+    sleep "$DELAY"
+  done
+
+  group_rc=0
+  for pid in "${group_pids[@]}"; do
+    if ! wait "$pid"; then
+      group_rc=1
+    fi
+  done
+
+  echo "Finished ${core}-core group, rc=${group_rc}" | tee -a "${log_root}/launcher.log"
+  if [[ "$group_rc" != "0" ]]; then
     rc=1
   fi
 done
@@ -100,6 +99,33 @@ else:
     by_family = {}
     for row in rows:
         by_family.setdefault(row.get("family"), []).append(float(row.get("total_min", 0.0)))
+
+    by_pair = {}
+    for row in rows:
+        by_pair[(int(row.get("cores", 0)), row.get("family"))] = row
+
+    print()
+    print("Per-core comparisons:")
+    for core in [2, 4, 8, 16, 32]:
+        chip = by_pair.get((core, "chipyard"))
+        poly_row = by_pair.get((core, "poly"))
+        if not chip or not poly_row:
+            print(f"  {core}-core comparison unavailable")
+            continue
+        chip_total = float(chip.get("total_min", 0.0))
+        poly_total = float(poly_row.get("total_min", 0.0))
+        chip_area = float(chip.get("area_time", 0.0))
+        poly_area = float(poly_row.get("area_time", 0.0))
+        total_faster = ((chip_total - poly_total) / chip_total * 100.0) if chip_total else 0.0
+        area_faster = ((chip_area - poly_area) / chip_area * 100.0) if chip_area else 0.0
+        print(
+            f"  {core}-core: chipyard total={chip_total:.3f}, poly total={poly_total:.3f}, "
+            f"poly total faster by={total_faster:.2f}%"
+        )
+        print(
+            f"           chipyard area={chip_area:.3f}, poly area={poly_area:.3f}, "
+            f"poly area faster by={area_faster:.2f}%"
+        )
 
     poly = by_family.get("poly", [])
     chipyard = by_family.get("chipyard", [])

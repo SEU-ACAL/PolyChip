@@ -135,11 +135,11 @@ add_goban_2t4c_test_target(ctest_goban_hetero_2t4c_smoke_test hetero_64t4c_smoke
 add_goban_64t4c_test_target(ctest_goban_hetero_64t4c_smoke_test hetero_64t4c_smoke_test.c)
 add_goban_2t4c_test_target(ctest_goban_uart_rx_echo_2t4c_test uart_rx_echo_test.c)
 add_goban_64t4c_test_target(ctest_goban_uart_rx_echo_64t4c_test uart_rx_echo_test.c)
-add_goban_batch_matmul_test_target(ctest_goban_batch_matmul batch_matmul.c 2 1 2)
-add_goban_batch_matmul_test_target(ctest_goban_batch_matmul batch_matmul.c 4 1 4)
-add_goban_batch_matmul_test_target(ctest_goban_batch_matmul batch_matmul.c 8 2 4)
-add_goban_batch_matmul_test_target(ctest_goban_batch_matmul batch_matmul.c 16 4 4)
-add_goban_batch_matmul_test_target(ctest_goban_batch_matmul batch_matmul.c 32 8 4)
+add_goban_batch_matmul_test_target(ctest_goban_batch_matmul batch_matmul.c 2 2 1)
+add_goban_batch_matmul_test_target(ctest_goban_batch_matmul batch_matmul.c 4 4 1)
+add_goban_batch_matmul_test_target(ctest_goban_batch_matmul batch_matmul.c 8 8 1)
+add_goban_batch_matmul_test_target(ctest_goban_batch_matmul batch_matmul.c 16 16 1)
+add_goban_batch_matmul_test_target(ctest_goban_batch_matmul batch_matmul.c 32 32 1)
 
 # Master build target
 add_custom_target(buckyball-goban-CTest-build ALL

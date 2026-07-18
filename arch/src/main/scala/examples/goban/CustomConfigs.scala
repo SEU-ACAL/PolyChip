@@ -104,6 +104,51 @@ class BuckyballGoban24Tile16CoreConfig
         new sims.base.BuckyballBaseConfig
     )
 
+/** 2 BBTiles × 1 Buckyball core each = 2 harts. */
+class BuckyballGoban2Tile1CoreConfig
+    extends Config(
+      new WithGobanHartIdBits(2) ++
+        new WithBuckyballTiles("src/main/scala/examples/goban/configs/2t1c-private.toml") ++
+        new chipyard.config.WithSystemBusWidth(256) ++
+        new sims.base.BuckyballBaseConfig
+    )
+
+/** 4 BBTiles × 1 Buckyball core each = 4 harts. */
+class BuckyballGoban4Tile1CoreConfig
+    extends Config(
+      new WithGobanHartIdBits(4) ++
+        new WithBuckyballTiles("src/main/scala/examples/goban/configs/4t1c-private.toml") ++
+        new chipyard.config.WithSystemBusWidth(256) ++
+        new sims.base.BuckyballBaseConfig
+    )
+
+/** 8 BBTiles × 1 Buckyball core each = 8 harts. */
+class BuckyballGoban8Tile1CoreConfig
+    extends Config(
+      new WithGobanHartIdBits(8) ++
+        new WithBuckyballTiles("src/main/scala/examples/goban/configs/8t1c-private.toml") ++
+        new chipyard.config.WithSystemBusWidth(256) ++
+        new sims.base.BuckyballBaseConfig
+    )
+
+/** 16 BBTiles × 1 Buckyball core each = 16 harts. */
+class BuckyballGoban16Tile1CoreConfig
+    extends Config(
+      new WithGobanHartIdBits(16) ++
+        new WithBuckyballTiles("src/main/scala/examples/goban/configs/16t1c-private.toml") ++
+        new chipyard.config.WithSystemBusWidth(256) ++
+        new sims.base.BuckyballBaseConfig
+    )
+
+/** 32 BBTiles × 1 Buckyball core each = 32 harts. */
+class BuckyballGoban32Tile1CoreConfig
+    extends Config(
+      new WithGobanHartIdBits(32) ++
+        new WithBuckyballTiles("src/main/scala/examples/goban/configs/32t1c-private.toml") ++
+        new chipyard.config.WithSystemBusWidth(256) ++
+        new sims.base.BuckyballBaseConfig
+    )
+
 /** 2 BBTiles × 4 Rocket cores each = 8 harts; core 0 in each tile has Buckyball. */
 class BuckyballGoban2Tile4CoreConfig
     extends Config(

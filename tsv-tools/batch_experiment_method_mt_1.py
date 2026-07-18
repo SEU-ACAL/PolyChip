@@ -384,6 +384,23 @@ def update_aggregate(
     slot["correct_rate_sum"] += float(summary_row["correct_rate"])
 
 
+# ------------2026.5.21-------------
+# def finalize_pdf_row(
+#     failure_rate_pct: int,
+#     layers: int,
+#     slot: Dict[str, float],
+# ) -> Dict[str, str]:
+#     runs = int(slot["runs"])
+#     average_horizontal_distance = (
+#         slot["horizontal_distance_sum"] / runs if runs else 0.0
+#     )
+#     correct_rate = slot["correct_rate_sum"] / runs if runs else 0.0
+#     return {
+#         "总故障率": f"{failure_rate_pct}%",
+#         "层数": str(layers),
+#         "Horizontal Distance": f"{average_horizontal_distance:.6f}",
+#         "正确率": f"{correct_rate:.6f}%",
+#     }
 def finalize_pdf_row(
     failure_rate_pct: int,
     layers: int,
@@ -405,6 +422,9 @@ def finalize_pdf_row(
         "Horizontal Distance": f"{average_horizontal_distance:.6f}",
         "正确率": f"{correct_rate:.6f}%",
     }
+
+
+# --------------------------------------------------------
 
 
 def write_tsv_table(
@@ -501,12 +521,20 @@ def main() -> int:
     table_tsv = output_dir / "experiment_method_summary.tsv"
     table_md = output_dir / "experiment_method_summary.md"
 
+    # ------------2026.5.21-------------
+    # table_fieldnames = [
+    #     "总故障率",
+    #     "层数",
+    #     "Horizontal Distance",
+    #     "正确率",
+    # ]
     table_fieldnames = [
         "总故障率",
         "阵列大小",
         "Horizontal Distance",
         "正确率",
     ]
+    # ---------------------------------------
 
     aggregate: Dict[Tuple[int, int], Dict[str, float]] = {}
 
@@ -597,6 +625,7 @@ def main() -> int:
             key = (failure_rate_pct, layers)
             if key not in aggregate:
                 continue
+            # written_rows.append(finalize_pdf_row(failure_rate_pct, layers, aggregate[key]))
             written_rows.append(
                 finalize_pdf_row(
                     failure_rate_pct, layers, args.grid_factor, aggregate[key]
